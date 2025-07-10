@@ -5,17 +5,17 @@ internal App *app_init() {
     GLFWwindow *window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, NULL, NULL);
     ASSERT(window != NULL);
 
-    Vulkan_Context *vulkan = vulkan_init();
+    Vulkan_Context *vulkan = vk_init();
     ASSERT(vulkan != NULL);
 
-    App *app = new App;
+    App *app = new App{};
     app->window = window;
     app->vulkan = vulkan;
     return app;
 }
 
 internal void app_cleanup(App *app) {
-    vulkan_cleanup(app->vulkan);
+    vk_cleanup(app->vulkan);
 
     glfwDestroyWindow(app->window);
     glfwTerminate();
