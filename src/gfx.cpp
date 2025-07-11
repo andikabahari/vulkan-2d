@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------------
 
-internal Vulkan_Context *vk_init() {
+internal Vulkan_Context *vk_init(GLFWwindow *window) {
     if (!vk_check_validation_layer_support()) {
         LOG_FATAL("Validation layers requested, but not available");
     }
@@ -8,6 +8,7 @@ internal Vulkan_Context *vk_init() {
     Vulkan_Context *context = new Vulkan_Context{};
     vk_create_instance(context);
     vk_create_debug_messenger(context);
+    vk_create_surface(context, window);
     return context;
 }
 
@@ -75,4 +76,8 @@ internal void vk_create_debug_messenger(Vulkan_Context *context) {
     PFN_vkCreateDebugUtilsMessengerEXT callback =
         (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
     VK_CHECK_RESULT(callback(context->instance, &create_info, context->allocator, &context->debug_messenger));
+}
+
+internal void vk_create_surface(Vulkan_Context *context, GLFWwindow *window) {
+    VK_CHECK_RESULT(glfwCreateWindowSurface(context->instance, window, context->allocator, &context->surface));
 }

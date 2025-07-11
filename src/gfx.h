@@ -11,7 +11,7 @@ struct Vulkan_Context {
     VkDebugUtilsMessengerEXT debug_messenger;
 };
 
-internal Vulkan_Context *vk_init();
+internal Vulkan_Context *vk_init(GLFWwindow *window);
 internal void vk_cleanup(Vulkan_Context *context);
 
 // -----------------------------------------------------------------------------
@@ -57,3 +57,5 @@ internal VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 }
 
 internal void vk_create_debug_messenger(Vulkan_Context *context);
+
+internal void vk_create_surface(Vulkan_Context *context, GLFWwindow *window);
