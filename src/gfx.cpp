@@ -2,11 +2,12 @@
 
 internal Vulkan_Context *vk_init() {
     if (!vk_check_validation_layer_support()) {
-        LOG_FATAL("Validation layers requested, but not available\n");
+        LOG_FATAL("Validation layers requested, but not available");
     }
 
     Vulkan_Context *context = new Vulkan_Context{};
     vk_create_instance(context);
+    vk_create_debug_messenger(context);
     return context;
 }
 
@@ -58,4 +59,20 @@ internal void vk_create_instance(Vulkan_Context *context) {
     create_info.ppEnabledExtensionNames = vk_required_extension_names;
 
     VK_CHECK_RESULT(vkCreateInstance(&create_info, context->allocator, &context->instance));
+}
+
+internal void vk_create_debug_messenger(Vulkan_Context *context) {
+    VkDebugUtilsMessengerCreateInfoEXT create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    create_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
+    create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
+        | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
+    create_info.pfnUserCallback = vk_debug_callback;
+
+    PFN_vkCreateDebugUtilsMessengerEXT callback =
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
+    VK_CHECK_RESULT(callback(context->instance, &create_info, context->allocator, &context->debug_messenger));
 }

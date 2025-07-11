@@ -1,18 +1,23 @@
-#define MAX_LOG_LENGTH 4096
-
 internal void log_printf(Log_Level level, const char *fmt, ...) {
-    char buffer[MAX_LOG_LENGTH];
-
-    // Initialize the buffer to empty
-    buffer[0] = '\0';
-
     switch (level) {
+        case LOG_LEVEL_DEBUG:
+            fprintf(stderr, "[DEBUG] ");
+            break;
+
         case LOG_LEVEL_INFO:
-            strcat_s(buffer, MAX_LOG_LENGTH, "[INFO] ");
+            fprintf(stderr, "[INFO] ");
+            break;
+
+        case LOG_LEVEL_WARNING:
+            fprintf(stderr, "[WARNING] ");
+            break;
+
+        case LOG_LEVEL_ERROR:
+            fprintf(stderr, "[ERROR] ");
             break;
 
         case LOG_LEVEL_FATAL:
-            strcat_s(buffer, MAX_LOG_LENGTH, "[FATAL] ");
+            fprintf(stderr, "[FATAL] ");
             break;
 
         default: return;
@@ -20,13 +25,8 @@ internal void log_printf(Log_Level level, const char *fmt, ...) {
 
     va_list args;
     va_start(args, fmt);
-    u64 buffer_length = strlen(buffer);
-    vsnprintf_s(
-        buffer + buffer_length,
-        MAX_LOG_LENGTH - buffer_length,
-        MAX_LOG_LENGTH - buffer_length - 1,
-        fmt, args);
+    vfprintf(stderr, fmt, args);
     va_end(args);
 
-    fprintf(stderr, buffer, "\n");
+    fprintf(stderr, "\n");
 }

@@ -29,3 +29,31 @@ global const char *vk_required_extension_names[] = {
 };
 
 internal void vk_create_instance(Vulkan_Context *context);
+
+internal VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+    VkDebugUtilsMessageTypeFlagsEXT message_types,
+    const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
+    void *user_data) {
+    switch (message_severity) {
+        default:
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+            LOG_ERROR(callback_data->pMessage);
+            break;
+
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+            LOG_WARNING(callback_data->pMessage);
+            break;
+
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+            LOG_INFO(callback_data->pMessage);
+            break;
+
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+            LOG_DEBUG(callback_data->pMessage);
+            break;
+    }
+    return VK_FALSE;
+}
+
+internal void vk_create_debug_messenger(Vulkan_Context *context);

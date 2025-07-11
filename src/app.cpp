@@ -26,7 +26,7 @@ internal void app_iterate(App *app) {
 }
 
 internal void app_run() {
-    LOG_INFO("App started\n");
+    LOG_INFO("App started");
 
     App *app = app_init();
     while (!glfwWindowShouldClose(app->window)) {
@@ -35,5 +35,5 @@ internal void app_run() {
     }
     app_cleanup(app);
 
-    LOG_INFO("App stopped\n");
+    LOG_INFO("App stopped");
 }

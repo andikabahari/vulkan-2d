@@ -56,13 +56,19 @@ typedef double   f64;
 // -----------------------------------------------------------------------------
 
 enum Log_Level : u8 {
+    LOG_LEVEL_DEBUG,
     LOG_LEVEL_INFO,
+    LOG_LEVEL_WARNING,
+    LOG_LEVEL_ERROR,
     LOG_LEVEL_FATAL,
 };
 
 internal void log_printf(Log_Level level, const char *fmt, ...);
 
+#define LOG_DEBUG(fmt, ...) log_printf(LOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__);
 #define LOG_INFO(fmt, ...) log_printf(LOG_LEVEL_INFO, fmt, ##__VA_ARGS__);
+#define LOG_WARNING(fmt, ...) log_printf(LOG_LEVEL_WARNING, fmt, ##__VA_ARGS__);
+#define LOG_ERROR(fmt, ...) log_printf(LOG_LEVEL_ERROR, fmt, ##__VA_ARGS__);
 #define LOG_FATAL(fmt, ...)                              \
     do {                                                 \
         log_printf(LOG_LEVEL_FATAL, fmt, ##__VA_ARGS__); \
