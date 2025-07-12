@@ -1,11 +1,11 @@
 // -----------------------------------------------------------------------------
 
-internal Vulkan_Context *vk_init(GLFWwindow *window) {
+internal Vk_Context *vk_init(GLFWwindow *window) {
     if (!vk_check_validation_layer_support()) {
         LOG_FATAL("Validation layers requested, but not available");
     }
 
-    Vulkan_Context *context = new Vulkan_Context{};
+    auto context = new Vk_Context{};
     vk_create_instance(context);
     vk_create_debug_messenger(context);
     vk_create_surface(context, window);
@@ -13,8 +13,22 @@ internal Vulkan_Context *vk_init(GLFWwindow *window) {
     return context;
 }
 
-internal void vk_cleanup(Vulkan_Context *context) {
+internal void vk_cleanup(Vk_Context *context) {
+    vk_cleanup_swapchain_support(&context->swapchain_support);
+
+    {
+        PFN_vkDestroyDebugUtilsMessengerEXT callback =
+            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+                context->instance, "vkDestroyDebugUtilsMessengerEXT");
+
+        callback(context->instance, context->debug_messenger, context->allocator);
+    }
+
+    vkDestroySurfaceKHR(context->instance, context->surface, context->allocator);
+    vkDestroyInstance(context->instance, context->allocator);
+
     delete context;
+    context = NULL;
 }
 
 // -----------------------------------------------------------------------------
@@ -23,7 +37,7 @@ internal b8 vk_check_validation_layer_support() {
     u32 available_layer_count = 0;
     VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&available_layer_count, NULL));
 
-    VkLayerProperties *available_layers = new VkLayerProperties[available_layer_count]{};
+    auto available_layers = new VkLayerProperties[available_layer_count]{};
     VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
 
     u32 requested_layer_count = ARRAY_COUNT(vk_validation_layer_names);
@@ -45,7 +59,7 @@ internal b8 vk_check_validation_layer_support() {
     return true;
 }
 
-internal void vk_create_instance(Vulkan_Context *context) {
+internal void vk_create_instance(Vk_Context *context) {
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = APP_NAME;
@@ -63,7 +77,7 @@ internal void vk_create_instance(Vulkan_Context *context) {
     VK_CHECK_RESULT(vkCreateInstance(&create_info, context->allocator, &context->instance));
 }
 
-internal void vk_create_debug_messenger(Vulkan_Context *context) {
+internal void vk_create_debug_messenger(Vk_Context *context) {
     VkDebugUtilsMessengerCreateInfoEXT create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     create_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
@@ -79,12 +93,12 @@ internal void vk_create_debug_messenger(Vulkan_Context *context) {
     VK_CHECK_RESULT(callback(context->instance, &create_info, context->allocator, &context->debug_messenger));
 }
 
-internal void vk_create_surface(Vulkan_Context *context, GLFWwindow *window) {
+internal void vk_create_surface(Vk_Context *context, GLFWwindow *window) {
     VK_CHECK_RESULT(glfwCreateWindowSurface(context->instance, window, context->allocator, &context->surface));
 }
 
 internal void vk_get_queue_family_support(
-    VkPhysicalDevice device, VkSurfaceKHR surface, Vulkan_Queue_Family_Indices *supported) {
+    VkPhysicalDevice device, VkSurfaceKHR surface, Vk_Queue_Family_Indices *supported) {
     supported->graphics_family = -1;
     supported->present_family = -1;
     supported->compute_family = -1;
@@ -157,7 +171,7 @@ internal b8 vk_check_device_extension_support(VkPhysicalDevice device) {
     return true;
 }
 
-internal void vk_get_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface, Vulkan_Swapchain_Support_Info *info) {
+internal void vk_get_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface, Vk_Swapchain_Support_Info *info) {
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &info->capabilities));
 
     VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &info->format_count, NULL));
@@ -178,7 +192,7 @@ internal void vk_get_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR sur
     }
 }
 
-internal void vk_cleanup_swapchain_support(Vulkan_Swapchain_Support_Info *info) {
+internal void vk_cleanup_swapchain_support(Vk_Swapchain_Support_Info *info) {
     if (info->formats) {
         delete[] info->formats;
         info->formats = NULL;
@@ -205,7 +219,7 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
     if (!features.geometryShader) return 0; // Application can't function without geometry shaders
 
     { // Check queue family support
-        Vulkan_Queue_Family_Indices queue_family_support;
+        Vk_Queue_Family_Indices queue_family_support;
         vk_get_queue_family_support(device, surface, &queue_family_support);
 
         b8 queue_family_support_adequate =
@@ -220,7 +234,7 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
     if (!vk_check_device_extension_support(device)) return 0;
 
     { // Check swapchain support
-        Vulkan_Swapchain_Support_Info swapchain_support{};
+        Vk_Swapchain_Support_Info swapchain_support{};
         vk_get_swapchain_support(device, surface, &swapchain_support);
 
         b8 swapchain_support_adequate =
@@ -235,7 +249,7 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
     return score;
 }
 
-internal void vk_pick_physical_device(Vulkan_Context *context) {
+internal void vk_pick_physical_device(Vk_Context *context) {
     u32 physical_device_count;
     VK_CHECK_RESULT(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, NULL));
     ASSERT(physical_device_count > 0);

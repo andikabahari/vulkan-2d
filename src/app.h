@@ -1,6 +1,6 @@
 struct App {
     GLFWwindow *window;
-    Vulkan_Context *vulkan;
+    Vk_Context *vulkan;
 };
 
 internal App *app_init();

@@ -5,10 +5,10 @@ internal App *app_init() {
     GLFWwindow *window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE, NULL, NULL);
     ASSERT(window != NULL);
 
-    Vulkan_Context *vulkan = vk_init(window);
+    Vk_Context *vulkan = vk_init(window);
     ASSERT(vulkan != NULL);
 
-    App *app = new App{};
+    auto app = new App{};
     app->window = window;
     app->vulkan = vulkan;
     return app;
