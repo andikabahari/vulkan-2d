@@ -4,11 +4,31 @@
 
 #define VK_CHECK_RESULT(v) ASSERT((v) == VK_SUCCESS)
 
+struct Vulkan_Swapchain_Support_Info {
+    VkSurfaceCapabilitiesKHR capabilities;
+    u32 format_count;
+    VkSurfaceFormatKHR *formats;
+    u32 present_mode_count;
+    VkPresentModeKHR *present_modes;
+};
+
+struct Vulkan_Queue_Family_Indices {
+    u32 graphics_family;
+    u32 present_family;
+    u32 compute_family;
+    u32 transfer_family;
+};
+
 struct Vulkan_Context {
     VkInstance instance;
     VkSurfaceKHR surface;
     VkAllocationCallbacks *allocator;
     VkDebugUtilsMessengerEXT debug_messenger;
+
+    VkPhysicalDevice physical_device;
+    VkDevice device;
+    Vulkan_Swapchain_Support_Info swapchain_support;
+    Vulkan_Queue_Family_Indices queue_family_support;
 };
 
 internal Vulkan_Context *vk_init(GLFWwindow *window);
@@ -59,3 +79,19 @@ internal VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 internal void vk_create_debug_messenger(Vulkan_Context *context);
 
 internal void vk_create_surface(Vulkan_Context *context, GLFWwindow *window);
+
+global const char *vk_device_extension_names[] = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
+internal void vk_get_queue_family_support(
+        VkPhysicalDevice device, VkSurfaceKHR surface, Vulkan_Queue_Family_Indices *supported);
+
+internal bool vk_check_device_extension_support(VkPhysicalDevice device);
+
+internal void vk_get_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface, Vulkan_Swapchain_Support_Info *info);
+internal void vk_cleanup_swapchain_support(Vulkan_Swapchain_Support_Info *info);
+
+internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR surface);
+
+internal void vk_pick_physical_device(Vulkan_Context *context);
