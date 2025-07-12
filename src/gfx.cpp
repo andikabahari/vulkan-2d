@@ -19,7 +19,7 @@ internal void vk_cleanup(Vulkan_Context *context) {
 
 // -----------------------------------------------------------------------------
 
-internal bool vk_check_validation_layer_support() {
+internal b8 vk_check_validation_layer_support() {
     u32 available_layer_count = 0;
     VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&available_layer_count, NULL));
 
@@ -29,7 +29,7 @@ internal bool vk_check_validation_layer_support() {
     u32 requested_layer_count = ARRAY_COUNT(vk_validation_layer_names);
     for (u32 i = 0; i < requested_layer_count; ++i) {
         const char *requested = vk_validation_layer_names[i];
-        bool found = false;
+        b8 found = false;
         for (u32 j = 0; j < available_layer_count; ++j) {
             const char *available = available_layers[j].layerName;
             if (strcmp(requested, available) == 0) {
@@ -126,7 +126,7 @@ internal void vk_get_queue_family_support(
     }
 }
 
-internal bool vk_check_device_extension_support(VkPhysicalDevice device) {
+internal b8 vk_check_device_extension_support(VkPhysicalDevice device) {
     u32 available_extension_count;
     VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(device, NULL, &available_extension_count, NULL));
     
@@ -136,7 +136,7 @@ internal bool vk_check_device_extension_support(VkPhysicalDevice device) {
         VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(device, NULL, &available_extension_count, available_extensions));
 
         for (u32 i = 0; i < device_extension_count; ++i) {
-            bool found = false;
+            b8 found = false;
             const char *requested = vk_device_extension_names[i];
             for (u32 j = 0; j < available_extension_count; ++j) {
                 const char *available = available_extensions[j].extensionName;
@@ -208,7 +208,7 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
         Vulkan_Queue_Family_Indices queue_family_support;
         vk_get_queue_family_support(device, surface, &queue_family_support);
 
-        bool queue_family_support_adequate =
+        b8 queue_family_support_adequate =
             queue_family_support.graphics_family != -1 &&
             queue_family_support.present_family != -1 &&
             queue_family_support.compute_family != -1 &&
@@ -223,7 +223,7 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
         Vulkan_Swapchain_Support_Info swapchain_support{};
         vk_get_swapchain_support(device, surface, &swapchain_support);
 
-        bool swapchain_support_adequate =
+        b8 swapchain_support_adequate =
             swapchain_support.format_count > 0 &&
             swapchain_support.present_mode_count > 0;
 

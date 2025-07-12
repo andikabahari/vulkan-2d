@@ -40,7 +40,7 @@ global const char *vk_validation_layer_names[] = {
     "VK_LAYER_KHRONOS_validation",
 };
 
-internal bool vk_check_validation_layer_support();
+internal b8 vk_check_validation_layer_support();
 
 global const char *vk_required_extension_names[] = {
     VK_KHR_SURFACE_EXTENSION_NAME,
@@ -87,7 +87,7 @@ global const char *vk_device_extension_names[] = {
 internal void vk_get_queue_family_support(
         VkPhysicalDevice device, VkSurfaceKHR surface, Vulkan_Queue_Family_Indices *supported);
 
-internal bool vk_check_device_extension_support(VkPhysicalDevice device);
+internal b8 vk_check_device_extension_support(VkPhysicalDevice device);
 
 internal void vk_get_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface, Vulkan_Swapchain_Support_Info *info);
 internal void vk_cleanup_swapchain_support(Vulkan_Swapchain_Support_Info *info);
