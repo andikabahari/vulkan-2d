@@ -11,11 +11,20 @@ internal Vk_Context *vk_init(GLFWwindow *window) {
     vk_create_surface(context, window);
     vk_pick_physical_device(context);
     vk_create_device(context);
+    vk_create_swapchain(context, window);
     return context;
 }
 
 internal void vk_cleanup(Vk_Context *context) {
+    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
+        vkDestroyImageView(context->device, context->swapchain_image_views[i], context->allocator);
+    }
+    delete[] context->swapchain_images;
+    context->swapchain_image_count = 0;
+    vkDestroySwapchainKHR(context->device, context->swapchain, context->allocator);
+
     vk_cleanup_swapchain_support(&context->swapchain_support);
+    vkDestroyDevice(context->device, context->allocator);
 
     {
         PFN_vkDestroyDebugUtilsMessengerEXT callback =
@@ -139,6 +148,8 @@ internal void vk_get_queue_family_support(
             }
         }
     }
+
+    delete[] queue_families;
 }
 
 internal b8 vk_check_device_extension_support(VkPhysicalDevice device) {
@@ -336,4 +347,117 @@ internal void vk_create_device(Vk_Context *context) {
         context->device, context->queue_family_support.present_family, 0, &context->present_queue);
     vkGetDeviceQueue(
         context->device, context->queue_family_support.transfer_family, 0, &context->transfer_queue);
+}
+
+internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window) {
+    VkSurfaceFormatKHR surface_format;
+    b8 found = false;
+    for (u32 i = 0; i < context->swapchain_support.format_count; ++i) {
+        VkSurfaceFormatKHR available_format = context->swapchain_support.formats[i];
+        if (available_format.format == VK_FORMAT_B8G8R8A8_SRGB &&
+            available_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            surface_format = available_format;
+            found = true;
+            break;
+        }
+    }
+    if (!found) surface_format = context->swapchain_support.formats[0];
+
+    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    for (u32 i = 0; i < context->swapchain_support.present_mode_count; ++i) {
+        VkPresentModeKHR available_present_mode = context->swapchain_support.present_modes[i];
+        if (available_present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            present_mode = available_present_mode;
+            break;
+        }
+    }
+
+    s32 width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    VkExtent2D extent{(u32)width, (u32)height};
+    if (context->swapchain_support.capabilities.currentExtent.width != UINT32_MAX) {
+        extent = context->swapchain_support.capabilities.currentExtent;
+    } else {
+        VkExtent2D min_extent = context->swapchain_support.capabilities.minImageExtent;
+        VkExtent2D max_extent = context->swapchain_support.capabilities.maxImageExtent;
+        extent.width = CLAMP(extent.width, min_extent.width, max_extent.width);
+        extent.height = CLAMP(extent.height, min_extent.height, max_extent.height);
+    }
+
+    u32 image_count = context->swapchain_support.capabilities.minImageCount + 1;
+    if (context->swapchain_support.capabilities.maxImageCount > 0 &&
+        image_count > context->swapchain_support.capabilities.maxImageCount) {
+        image_count = context->swapchain_support.capabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    create_info.surface = context->surface;
+    create_info.minImageCount = image_count;
+    create_info.imageFormat = surface_format.format;
+    create_info.imageColorSpace = surface_format.colorSpace;
+    create_info.imageExtent = extent;
+    create_info.imageArrayLayers = 1;
+    create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    
+    if (context->queue_family_support.graphics_family !=
+        context->queue_family_support.present_family) {
+        u32 queue_family_indices[] = {
+            context->queue_family_support.graphics_family,
+            context->queue_family_support.present_family,
+        };
+        create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        create_info.queueFamilyIndexCount = 2;
+        create_info.pQueueFamilyIndices = queue_family_indices;
+    } else {
+        create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        create_info.queueFamilyIndexCount = 0;
+        create_info.pQueueFamilyIndices = 0;
+    }
+
+    create_info.preTransform = context->swapchain_support.capabilities.currentTransform;
+    create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    create_info.presentMode = present_mode;
+    create_info.clipped = VK_TRUE;
+    create_info.oldSwapchain = VK_NULL_HANDLE;
+
+    VK_CHECK_RESULT(vkCreateSwapchainKHR(
+        context->device, &create_info, context->allocator, &context->swapchain));
+
+    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(
+        context->device, context->swapchain, &context->swapchain_image_count, NULL));
+    if (context->swapchain_images == NULL) {
+        context->swapchain_images = new VkImage[context->swapchain_image_count]{};
+    }
+    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(
+        context->device, context->swapchain, &context->swapchain_image_count, context->swapchain_images));
+
+    context->swapchain_image_format = surface_format.format;
+    context->swapchain_extent = extent;
+
+    { // Image views
+        if (context->swapchain_image_views == NULL) {
+            context->swapchain_image_views = new VkImageView[context->swapchain_image_count];
+        }
+
+        for (u32 i = 0; i < context->swapchain_image_count; ++i) {
+            VkImageViewCreateInfo create_info{};
+            create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            create_info.image = context->swapchain_images[i];
+            create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            create_info.format = context->swapchain_image_format;
+            create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+            create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            create_info.subresourceRange.baseMipLevel = 0;
+            create_info.subresourceRange.levelCount = 1;
+            create_info.subresourceRange.baseArrayLayer = 0;
+            create_info.subresourceRange.layerCount = 1;
+
+            VK_CHECK_RESULT(vkCreateImageView(
+                context->device, &create_info, context->allocator, &context->swapchain_image_views[i]));
+        }
+    }
 }

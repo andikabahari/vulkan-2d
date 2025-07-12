@@ -33,6 +33,14 @@ struct Vk_Context {
     VkQueue graphics_queue;
     VkQueue present_queue;
     VkQueue transfer_queue;
+
+    VkSwapchainKHR swapchain;
+    u32 swapchain_image_count;
+    VkImage *swapchain_images;
+    VkFormat swapchain_image_format;
+    VkImageView *swapchain_image_views;
+    VkExtent2D swapchain_extent;
+    VkFramebuffer *swapchain_framebuffers;
 };
 
 internal Vk_Context *vk_init(GLFWwindow *window);
@@ -101,3 +109,5 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
 internal void vk_pick_physical_device(Vk_Context *context);
 
 internal void vk_create_device(Vk_Context *context);
+
+internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window);
