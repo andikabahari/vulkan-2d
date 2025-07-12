@@ -10,6 +10,7 @@ internal Vk_Context *vk_init(GLFWwindow *window) {
     vk_create_debug_messenger(context);
     vk_create_surface(context, window);
     vk_pick_physical_device(context);
+    vk_create_device(context);
     return context;
 }
 
@@ -274,4 +275,65 @@ internal void vk_pick_physical_device(Vk_Context *context) {
 
     vk_get_queue_family_support(context->physical_device, context->surface, &context->queue_family_support);
     vk_get_swapchain_support(context->physical_device, context->surface, &context->swapchain_support);
+}
+
+internal void vk_create_device(Vk_Context *context) {
+    b8 shared_present_queue =
+        context->queue_family_support.graphics_family ==
+            context->queue_family_support.present_family;
+    b8 shared_transfer_queue =
+        context->queue_family_support.graphics_family ==
+            context->queue_family_support.transfer_family;
+    
+    u32 index_count = 1;
+    if (!shared_present_queue) index_count++;
+    if (!shared_transfer_queue) index_count++;
+
+    auto indices = new u32[index_count];
+    u32 index = 0;
+    indices[index++] = context->queue_family_support.graphics_family;
+    if (!shared_present_queue)
+        indices[index++] = context->queue_family_support.present_family;
+    if (!shared_transfer_queue)
+        indices[index++] = context->queue_family_support.transfer_family;
+
+    auto queue_create_infos = new VkDeviceQueueCreateInfo[index_count]{};
+    for (u32 i = 0; i < index_count; ++i) {
+        queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_infos[i].queueFamilyIndex = indices[i];
+        queue_create_infos[i].queueCount = 1;
+        f32 queue_priority = 1.0f;
+        queue_create_infos[i].pQueuePriorities = &queue_priority;
+        queue_create_infos[i].flags = 0;
+        queue_create_infos[i].pNext = 0;
+    }
+
+    delete[] indices;
+
+    // Not used yet?
+    VkPhysicalDeviceFeatures device_features{};
+
+    VkDeviceCreateInfo device_create_info{};
+    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_create_info.queueCreateInfoCount = index_count;
+    device_create_info.pQueueCreateInfos = queue_create_infos;
+    device_create_info.pEnabledFeatures = &device_features;
+    device_create_info.enabledExtensionCount = ARRAY_COUNT(vk_device_extension_names);
+    device_create_info.ppEnabledExtensionNames = vk_device_extension_names;
+
+    // Deprecated and ignored
+    device_create_info.enabledLayerCount = 0;
+    device_create_info.ppEnabledLayerNames = NULL;
+
+    VK_CHECK_RESULT(vkCreateDevice(
+                context->physical_device, &device_create_info, context->allocator, &context->device));
+
+    delete[] queue_create_infos;
+
+    vkGetDeviceQueue(
+        context->device, context->queue_family_support.graphics_family, 0, &context->graphics_queue);
+    vkGetDeviceQueue(
+        context->device, context->queue_family_support.present_family, 0, &context->present_queue);
+    vkGetDeviceQueue(
+        context->device, context->queue_family_support.transfer_family, 0, &context->transfer_queue);
 }
