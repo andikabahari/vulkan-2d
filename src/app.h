@@ -1,3 +1,5 @@
+#pragma once
+
 struct App {
     GLFWwindow *window;
     Vk_Context *vulkan;

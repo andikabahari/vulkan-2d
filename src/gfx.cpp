@@ -12,10 +12,13 @@ internal Vk_Context *vk_init(GLFWwindow *window) {
     vk_pick_physical_device(context);
     vk_create_device(context);
     vk_create_swapchain(context, window);
+    vk_create_render_pass(context);
     return context;
 }
 
 internal void vk_cleanup(Vk_Context *context) {
+    vkDestroyRenderPass(context->device, context->render_pass, context->allocator);
+
     for (u32 i = 0; i < context->swapchain_image_count; ++i) {
         vkDestroyImageView(context->device, context->swapchain_image_views[i], context->allocator);
     }
@@ -45,10 +48,10 @@ internal void vk_cleanup(Vk_Context *context) {
 
 internal b8 vk_check_validation_layer_support() {
     u32 available_layer_count = 0;
-    VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&available_layer_count, NULL));
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, NULL));
 
     auto available_layers = new VkLayerProperties[available_layer_count]{};
-    VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers));
 
     u32 requested_layer_count = ARRAY_COUNT(vk_validation_layer_names);
     for (u32 i = 0; i < requested_layer_count; ++i) {
@@ -84,7 +87,7 @@ internal void vk_create_instance(Vk_Context *context) {
     create_info.enabledExtensionCount = ARRAY_COUNT(vk_required_extension_names);
     create_info.ppEnabledExtensionNames = vk_required_extension_names;
 
-    VK_CHECK_RESULT(vkCreateInstance(&create_info, context->allocator, &context->instance));
+    VK_CHECK(vkCreateInstance(&create_info, context->allocator, &context->instance));
 }
 
 internal void vk_create_debug_messenger(Vk_Context *context) {
@@ -100,11 +103,11 @@ internal void vk_create_debug_messenger(Vk_Context *context) {
 
     PFN_vkCreateDebugUtilsMessengerEXT callback =
         (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
-    VK_CHECK_RESULT(callback(context->instance, &create_info, context->allocator, &context->debug_messenger));
+    VK_CHECK(callback(context->instance, &create_info, context->allocator, &context->debug_messenger));
 }
 
 internal void vk_create_surface(Vk_Context *context, GLFWwindow *window) {
-    VK_CHECK_RESULT(glfwCreateWindowSurface(context->instance, window, context->allocator, &context->surface));
+    VK_CHECK(glfwCreateWindowSurface(context->instance, window, context->allocator, &context->surface));
 }
 
 internal void vk_get_queue_family_support(
@@ -131,7 +134,7 @@ internal void vk_get_queue_family_support(
         }
 
         VkBool32 present_support = VK_FALSE;
-        VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &present_support));
+        VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &present_support));
         if (present_support) {
             supported->present_family = i;
         }
@@ -154,12 +157,12 @@ internal void vk_get_queue_family_support(
 
 internal b8 vk_check_device_extension_support(VkPhysicalDevice device) {
     u32 available_extension_count;
-    VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(device, NULL, &available_extension_count, NULL));
+    VK_CHECK(vkEnumerateDeviceExtensionProperties(device, NULL, &available_extension_count, NULL));
     
     u32 device_extension_count = ARRAY_COUNT(vk_device_extension_names);
     if (device_extension_count > 0) {
         auto available_extensions = new VkExtensionProperties[available_extension_count];
-        VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(device, NULL, &available_extension_count, available_extensions));
+        VK_CHECK(vkEnumerateDeviceExtensionProperties(device, NULL, &available_extension_count, available_extensions));
 
         for (u32 i = 0; i < device_extension_count; ++i) {
             b8 found = false;
@@ -184,22 +187,22 @@ internal b8 vk_check_device_extension_support(VkPhysicalDevice device) {
 }
 
 internal void vk_get_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface, Vk_Swapchain_Support_Info *info) {
-    VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &info->capabilities));
+    VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &info->capabilities));
 
-    VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &info->format_count, NULL));
+    VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &info->format_count, NULL));
     if (info->format_count > 0) {
         if (!info->formats) {
             info->formats = new VkSurfaceFormatKHR[info->format_count];
         }
-        VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &info->format_count, info->formats));
+        VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &info->format_count, info->formats));
     }
 
-    VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &info->present_mode_count, NULL));
+    VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &info->present_mode_count, NULL));
     if (info->present_mode_count > 0) {
         if (!info->present_modes) {
             info->present_modes = new VkPresentModeKHR[info->present_mode_count];
         }
-        VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(
+        VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
                     device, surface, &info->present_mode_count, info->present_modes));
     }
 }
@@ -263,11 +266,11 @@ internal u32 vk_rate_device_suitability(VkPhysicalDevice device, VkSurfaceKHR su
 
 internal void vk_pick_physical_device(Vk_Context *context) {
     u32 physical_device_count;
-    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, NULL));
+    VK_CHECK(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, NULL));
     ASSERT(physical_device_count > 0);
 
     auto physical_devices = new VkPhysicalDevice[physical_device_count]{};
-    VK_CHECK_RESULT(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, physical_devices));
+    VK_CHECK(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, physical_devices));
 
     u32 best_picked_index = -1;
     u32 best_picked_score = 0;
@@ -336,8 +339,8 @@ internal void vk_create_device(Vk_Context *context) {
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = NULL;
 
-    VK_CHECK_RESULT(vkCreateDevice(
-                context->physical_device, &device_create_info, context->allocator, &context->device));
+    VK_CHECK(vkCreateDevice(
+        context->physical_device, &device_create_info, context->allocator, &context->device));
 
     delete[] queue_create_infos;
 
@@ -421,15 +424,15 @@ internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window) {
     create_info.clipped = VK_TRUE;
     create_info.oldSwapchain = VK_NULL_HANDLE;
 
-    VK_CHECK_RESULT(vkCreateSwapchainKHR(
+    VK_CHECK(vkCreateSwapchainKHR(
         context->device, &create_info, context->allocator, &context->swapchain));
 
-    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(
+    VK_CHECK(vkGetSwapchainImagesKHR(
         context->device, context->swapchain, &context->swapchain_image_count, NULL));
     if (context->swapchain_images == NULL) {
         context->swapchain_images = new VkImage[context->swapchain_image_count]{};
     }
-    VK_CHECK_RESULT(vkGetSwapchainImagesKHR(
+    VK_CHECK(vkGetSwapchainImagesKHR(
         context->device, context->swapchain, &context->swapchain_image_count, context->swapchain_images));
 
     context->swapchain_image_format = surface_format.format;
@@ -456,8 +459,50 @@ internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window) {
             create_info.subresourceRange.baseArrayLayer = 0;
             create_info.subresourceRange.layerCount = 1;
 
-            VK_CHECK_RESULT(vkCreateImageView(
+            VK_CHECK(vkCreateImageView(
                 context->device, &create_info, context->allocator, &context->swapchain_image_views[i]));
         }
     }
+}
+
+internal void vk_create_render_pass(Vk_Context *context) {
+    VkAttachmentDescription color_attachment{};
+    color_attachment.format = context->swapchain_image_format;
+    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    color_attachment.flags = 0;
+
+    VkAttachmentReference color_attachment_ref{};
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass_desc{};
+    subpass_desc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass_desc.colorAttachmentCount = 1;
+    subpass_desc.pColorAttachments = &color_attachment_ref;
+
+    VkSubpassDependency subpass_dependency{};
+    subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    subpass_dependency.dstSubpass = 0;
+    subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.srcAccessMask = 0;
+    subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo render_pass_create_info{};
+    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_create_info.attachmentCount = 1;
+    render_pass_create_info.pAttachments = &color_attachment;
+    render_pass_create_info.subpassCount = 1;
+    render_pass_create_info.pSubpasses = &subpass_desc;
+    render_pass_create_info.dependencyCount = 1;
+    render_pass_create_info.pDependencies = &subpass_dependency;
+
+    VULKAN_CHECK(vkCreateRenderPass(
+            context->device, &render_pass_create_info, context->allocator, &context->render_pass));
 }

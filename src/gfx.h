@@ -2,7 +2,7 @@
 
 // -----------------------------------------------------------------------------
 
-#define VK_CHECK_RESULT(v) ASSERT((v) == VK_SUCCESS)
+#define VK_CHECK(v) ASSERT((v) == VK_SUCCESS)
 
 struct Vk_Swapchain_Support_Info {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -41,6 +41,8 @@ struct Vk_Context {
     VkImageView *swapchain_image_views;
     VkExtent2D swapchain_extent;
     VkFramebuffer *swapchain_framebuffers;
+
+    VkRenderPass render_pass;
 };
 
 internal Vk_Context *vk_init(GLFWwindow *window);
@@ -111,3 +113,5 @@ internal void vk_pick_physical_device(Vk_Context *context);
 internal void vk_create_device(Vk_Context *context);
 
 internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window);
+
+internal void vk_create_render_pass(Vk_Context *context);
