@@ -22,7 +22,7 @@ internal void app_cleanup(App *app) {
 }
 
 internal void app_iterate(App *app) {
-    //
+    vk_draw_frame(app->vulkan);
 }
 
 internal void app_run() {

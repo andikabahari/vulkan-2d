@@ -61,6 +61,45 @@ internal void vk_cleanup(Vk_Context *context) {
     context = NULL;
 }
 
+internal void vk_draw_frame(Vk_Context *context) {
+    vkWaitForFences(context->device, 1, &context->in_flight_fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(context->device, 1, &context->in_flight_fence);
+
+    u32 image_index;
+    VK_CHECK(vkAcquireNextImageKHR(
+        context->device, context->swapchain, UINT64_MAX, context->image_available_semaphore, VK_NULL_HANDLE, &image_index));
+
+    VK_CHECK(vkResetCommandBuffer(context->command_buffer, 0));
+    vk_record_command_buffer(context, image_index);
+
+    VkSemaphore wait_semaphores[] = {context->image_available_semaphore};
+    VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore signal_semaphores[] = {context->render_finished_semaphore};
+
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = wait_semaphores;
+    submit_info.pWaitDstStageMask = wait_stages;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &context->command_buffer;
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = signal_semaphores;
+    VK_CHECK(vkQueueSubmit(context->graphics_queue, 1, &submit_info, context->in_flight_fence));
+
+    VkSwapchainKHR swap_chains[] = {context->swapchain};
+
+    VkPresentInfoKHR present_info{};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = signal_semaphores;
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = swap_chains;
+    present_info.pImageIndices = &image_index;
+    present_info.pResults = NULL; // optional
+    VK_CHECK(vkQueuePresentKHR(context->present_queue, &present_info));
+}
+
 // -----------------------------------------------------------------------------
 
 internal b8 vk_check_validation_layer_support() {
@@ -725,4 +764,63 @@ internal void vk_create_sync_objects(Vk_Context *context) {
 
     VK_CHECK(vkCreateFence(
         context->device, &fence_create_info, context->allocator, &context->in_flight_fence));
+}
+
+internal void vk_record_command_buffer(Vk_Context *context, u32 image_index) {
+    VkCommandBufferBeginInfo cmd_begin_info{};
+    cmd_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmd_begin_info.flags = 0; // optional
+    cmd_begin_info.pInheritanceInfo = NULL; // optional, only relevant for secondary command buffers
+    VK_CHECK(vkBeginCommandBuffer(context->command_buffer, &cmd_begin_info));
+
+    VkRenderPassBeginInfo render_begin_info{};
+    render_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_begin_info.renderPass = context->render_pass;
+    render_begin_info.framebuffer = context->swapchain_framebuffers[image_index];
+    render_begin_info.renderArea.offset.x = 0;
+    render_begin_info.renderArea.offset.y = 0;
+    render_begin_info.renderArea.extent.width = context->swapchain_extent.width;
+    render_begin_info.renderArea.extent.height = context->swapchain_extent.height;
+    render_begin_info.pNext = NULL;
+    u32 clear_value_count = 1;
+    auto clear_values = new VkClearValue[1]{};
+    clear_values[0].color.float32[0] = 0.0f;
+    clear_values[0].color.float32[1] = 0.0f;
+    clear_values[0].color.float32[2] = 0.0f;
+    clear_values[0].color.float32[3] = 1.0f;
+    render_begin_info.clearValueCount = clear_value_count;
+    render_begin_info.pClearValues = clear_values;
+
+    vkCmdBeginRenderPass(context->command_buffer, &render_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    // Render pass
+    {
+        vkCmdBindPipeline(
+            context->command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            context->graphics_pipeline);
+    
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float)context->swapchain_extent.width;
+        viewport.height = (float)context->swapchain_extent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(context->command_buffer, 0, 1, &viewport);
+    
+        VkRect2D scissor{};
+        scissor.offset.x = 0;
+        scissor.offset.y = 0;
+        scissor.extent = context->swapchain_extent;
+        vkCmdSetScissor(context->command_buffer, 0, 1, &scissor);
+    
+        vkCmdDraw(context->command_buffer, 3, 1, 0, 0);
+    }
+
+    vkCmdEndRenderPass(context->command_buffer);
+
+    VK_CHECK(vkEndCommandBuffer(context->command_buffer));
+
+    delete[] clear_values;
 }

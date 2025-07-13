@@ -57,6 +57,8 @@ struct Vk_Context {
 internal Vk_Context *vk_init(GLFWwindow *window);
 internal void vk_cleanup(Vk_Context *context);
 
+internal void vk_draw_frame(Vk_Context *context);
+
 // -----------------------------------------------------------------------------
 
 global const char *vk_validation_layer_names[] = {
@@ -134,3 +136,5 @@ internal void vk_create_framebuffers(Vk_Context *context);
 internal void vk_create_command_buffer(Vk_Context *context);
 
 internal void vk_create_sync_objects(Vk_Context *context);
+
+internal void vk_record_command_buffer(Vk_Context *context, u32 image_index);
