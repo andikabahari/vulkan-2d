@@ -48,6 +48,10 @@ struct Vk_Context {
 
     VkCommandPool command_pool;
     VkCommandBuffer command_buffer;
+
+    VkSemaphore image_available_semaphore;
+    VkSemaphore render_finished_semaphore;
+    VkFence in_flight_fence;
 };
 
 internal Vk_Context *vk_init(GLFWwindow *window);
@@ -128,3 +132,5 @@ internal void vk_create_graphics_pipeline(Vk_Context *context);
 internal void vk_create_framebuffers(Vk_Context *context);
 
 internal void vk_create_command_buffer(Vk_Context *context);
+
+internal void vk_create_sync_objects(Vk_Context *context);

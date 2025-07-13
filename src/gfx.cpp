@@ -16,10 +16,15 @@ internal Vk_Context *vk_init(GLFWwindow *window) {
     vk_create_graphics_pipeline(context);
     vk_create_framebuffers(context);
     vk_create_command_buffer(context);
+    vk_create_sync_objects(context);
     return context;
 }
 
 internal void vk_cleanup(Vk_Context *context) {
+    vkDestroySemaphore(context->device, context->image_available_semaphore, context->allocator);
+    vkDestroySemaphore(context->device, context->render_finished_semaphore, context->allocator);
+    vkDestroyFence(context->device, context->in_flight_fence, context->allocator);
+
     vkDestroyCommandPool(context->device, context->command_pool, context->allocator);
 
     for (u32 i = 0; i < context->swapchain_image_count; ++i) {
@@ -702,4 +707,22 @@ internal void vk_create_command_buffer(Vk_Context *context) {
 
         VK_CHECK(vkAllocateCommandBuffers(context->device, &alloc_info, &context->command_buffer));
     }
+}
+
+internal void vk_create_sync_objects(Vk_Context *context) {
+    VkSemaphoreCreateInfo semaphore_create_info{};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VK_CHECK(vkCreateSemaphore(
+        context->device, &semaphore_create_info, context->allocator, &context->image_available_semaphore));
+
+    VK_CHECK(vkCreateSemaphore(
+        context->device, &semaphore_create_info, context->allocator, &context->render_finished_semaphore));
+
+    VkFenceCreateInfo fence_create_info{};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VK_CHECK(vkCreateFence(
+        context->device, &fence_create_info, context->allocator, &context->in_flight_fence));
 }
