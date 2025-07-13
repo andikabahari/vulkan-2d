@@ -45,6 +45,9 @@ struct Vk_Context {
     VkRenderPass render_pass;
     VkPipelineLayout pipeline_layout;
     VkPipeline graphics_pipeline;
+
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
 };
 
 internal Vk_Context *vk_init(GLFWwindow *window);
@@ -121,3 +124,7 @@ internal void vk_create_render_pass(Vk_Context *context);
 internal char *vk_read_code(const char *filename, u64 *size);
 
 internal void vk_create_graphics_pipeline(Vk_Context *context);
+
+internal void vk_create_framebuffers(Vk_Context *context);
+
+internal void vk_create_command_buffer(Vk_Context *context);

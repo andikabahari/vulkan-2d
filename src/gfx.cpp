@@ -14,10 +14,18 @@ internal Vk_Context *vk_init(GLFWwindow *window) {
     vk_create_swapchain(context, window);
     vk_create_render_pass(context);
     vk_create_graphics_pipeline(context);
+    vk_create_framebuffers(context);
+    vk_create_command_buffer(context);
     return context;
 }
 
 internal void vk_cleanup(Vk_Context *context) {
+    vkDestroyCommandPool(context->device, context->command_pool, context->allocator);
+
+    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
+        vkDestroyFramebuffer(context->device, context->swapchain_framebuffers[i], context->allocator);
+    }
+
     vkDestroyPipeline(context->device, context->graphics_pipeline, context->allocator);
     vkDestroyPipelineLayout(context->device, context->pipeline_layout, context->allocator);
 
@@ -624,7 +632,7 @@ internal void vk_create_graphics_pipeline(Vk_Context *context) {
     pipeline_layout_create_info.pushConstantRangeCount = 0;
 
     VK_CHECK(vkCreatePipelineLayout(
-            context->device, &pipeline_layout_create_info, context->allocator, &context->pipeline_layout));
+        context->device, &pipeline_layout_create_info, context->allocator, &context->pipeline_layout));
 
     VkGraphicsPipelineCreateInfo pipeline_create_info{};
     pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -644,11 +652,54 @@ internal void vk_create_graphics_pipeline(Vk_Context *context) {
     pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE; // optional
 
     VK_CHECK(vkCreateGraphicsPipelines(
-            context->device, VK_NULL_HANDLE, 1, &pipeline_create_info, context->allocator, &context->graphics_pipeline));
+        context->device, VK_NULL_HANDLE, 1, &pipeline_create_info, context->allocator, &context->graphics_pipeline));
 
     vkDestroyShaderModule(context->device, frag_shader_module, context->allocator);
     delete[] frag_shader_code;
 
     vkDestroyShaderModule(context->device, vert_shader_module, context->allocator);
     delete[] vert_shader_code;
+}
+
+internal void vk_create_framebuffers(Vk_Context *context) {
+    context->swapchain_framebuffers = new VkFramebuffer[context->swapchain_image_count];
+
+    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
+        // TODO: we might need depth attachment later
+        u32 attachment_count = 1;
+        VkImageView attachments[] = {context->swapchain_image_views[i]};
+        
+        VkFramebufferCreateInfo create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        create_info.renderPass = context->render_pass;
+        create_info.attachmentCount = attachment_count;
+        create_info.pAttachments = attachments;
+        create_info.width = context->swapchain_extent.width;
+        create_info.height = context->swapchain_extent.height;
+        create_info.layers = 1;
+
+        VK_CHECK(vkCreateFramebuffer(
+            context->device, &create_info, context->allocator, &context->swapchain_framebuffers[i]));
+    }
+}
+
+internal void vk_create_command_buffer(Vk_Context *context) {
+    { // Command pool
+        VkCommandPoolCreateInfo create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        create_info.queueFamilyIndex = context->queue_family_support.graphics_family;
+
+        VK_CHECK(vkCreateCommandPool(context->device, &create_info, context->allocator, &context->command_pool));
+    }
+
+    { // Command buffer
+        VkCommandBufferAllocateInfo alloc_info{};
+        alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.commandPool = context->command_pool;
+        alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandBufferCount = 1;
+
+        VK_CHECK(vkAllocateCommandBuffers(context->device, &alloc_info, &context->command_buffer));
+    }
 }
