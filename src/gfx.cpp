@@ -27,21 +27,14 @@ internal void vk_cleanup(Vk_Context *context) {
 
     vkDestroyCommandPool(context->device, context->command_pool, context->allocator);
 
-    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
-        vkDestroyFramebuffer(context->device, context->swapchain_framebuffers[i], context->allocator);
-    }
+    vk_cleanup_framebuffers(context);
 
     vkDestroyPipeline(context->device, context->graphics_pipeline, context->allocator);
     vkDestroyPipelineLayout(context->device, context->pipeline_layout, context->allocator);
 
     vkDestroyRenderPass(context->device, context->render_pass, context->allocator);
 
-    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
-        vkDestroyImageView(context->device, context->swapchain_image_views[i], context->allocator);
-    }
-    delete[] context->swapchain_images;
-    context->swapchain_image_count = 0;
-    vkDestroySwapchainKHR(context->device, context->swapchain, context->allocator);
+    vk_cleanup_swapchain(context);
 
     vk_cleanup_swapchain_support(&context->swapchain_support);
     vkDestroyDevice(context->device, context->allocator);
@@ -98,6 +91,10 @@ internal void vk_draw_frame(Vk_Context *context) {
     present_info.pImageIndices = &image_index;
     present_info.pResults = NULL; // optional
     VK_CHECK(vkQueuePresentKHR(context->present_queue, &present_info));
+}
+
+internal void vk_wait_idle(Vk_Context *context) {
+    vkDeviceWaitIdle(context->device);
 }
 
 // -----------------------------------------------------------------------------
@@ -408,6 +405,8 @@ internal void vk_create_device(Vk_Context *context) {
 }
 
 internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window) {
+    vk_get_swapchain_support(context->physical_device, context->surface, &context->swapchain_support);
+
     VkSurfaceFormatKHR surface_format;
     b8 found = false;
     for (u32 i = 0; i < context->swapchain_support.format_count; ++i) {
@@ -520,6 +519,19 @@ internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window) {
     }
 }
 
+internal void vk_cleanup_swapchain(Vk_Context *context) {
+    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
+        vkDestroyImageView(context->device, context->swapchain_image_views[i], context->allocator);
+    }
+    delete[] context->swapchain_image_views;
+    context->swapchain_image_views = NULL;
+
+    if (context->swapchain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(context->device, context->swapchain, context->allocator);
+        context->swapchain = VK_NULL_HANDLE;
+    }
+}
+
 internal void vk_create_render_pass(Vk_Context *context) {
     VkAttachmentDescription color_attachment{};
     color_attachment.format = context->swapchain_image_format;
@@ -559,7 +571,7 @@ internal void vk_create_render_pass(Vk_Context *context) {
     render_pass_create_info.pDependencies = &subpass_dependency;
 
     VK_CHECK(vkCreateRenderPass(
-            context->device, &render_pass_create_info, context->allocator, &context->render_pass));
+        context->device, &render_pass_create_info, context->allocator, &context->render_pass));
 }
 
 internal char *vk_read_code(const char *filename, u64 *size) {
@@ -710,13 +722,12 @@ internal void vk_create_framebuffers(Vk_Context *context) {
 
     for (u32 i = 0; i < context->swapchain_image_count; ++i) {
         // TODO: we might need depth attachment later
-        u32 attachment_count = 1;
         VkImageView attachments[] = {context->swapchain_image_views[i]};
         
         VkFramebufferCreateInfo create_info{};
         create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         create_info.renderPass = context->render_pass;
-        create_info.attachmentCount = attachment_count;
+        create_info.attachmentCount = ARRAY_COUNT(attachments);
         create_info.pAttachments = attachments;
         create_info.width = context->swapchain_extent.width;
         create_info.height = context->swapchain_extent.height;
@@ -725,6 +736,14 @@ internal void vk_create_framebuffers(Vk_Context *context) {
         VK_CHECK(vkCreateFramebuffer(
             context->device, &create_info, context->allocator, &context->swapchain_framebuffers[i]));
     }
+}
+
+internal void vk_cleanup_framebuffers(Vk_Context *context) {
+    for (u32 i = 0; i < context->swapchain_image_count; ++i) {
+        vkDestroyFramebuffer(context->device, context->swapchain_framebuffers[i], context->allocator);
+    }
+    delete[] context->swapchain_framebuffers;
+    context->swapchain_framebuffers = NULL;
 }
 
 internal void vk_create_command_buffer(Vk_Context *context) {
@@ -773,28 +792,27 @@ internal void vk_record_command_buffer(Vk_Context *context, u32 image_index) {
     cmd_begin_info.pInheritanceInfo = NULL; // optional, only relevant for secondary command buffers
     VK_CHECK(vkBeginCommandBuffer(context->command_buffer, &cmd_begin_info));
 
-    VkRenderPassBeginInfo render_begin_info{};
-    render_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_begin_info.renderPass = context->render_pass;
-    render_begin_info.framebuffer = context->swapchain_framebuffers[image_index];
-    render_begin_info.renderArea.offset.x = 0;
-    render_begin_info.renderArea.offset.y = 0;
-    render_begin_info.renderArea.extent.width = context->swapchain_extent.width;
-    render_begin_info.renderArea.extent.height = context->swapchain_extent.height;
-    render_begin_info.pNext = NULL;
-    u32 clear_value_count = 1;
-    auto clear_values = new VkClearValue[1]{};
-    clear_values[0].color.float32[0] = 0.0f;
-    clear_values[0].color.float32[1] = 0.0f;
-    clear_values[0].color.float32[2] = 0.0f;
-    clear_values[0].color.float32[3] = 1.0f;
-    render_begin_info.clearValueCount = clear_value_count;
-    render_begin_info.pClearValues = clear_values;
+    { // Render pass
+        VkRenderPassBeginInfo render_begin_info{};
+        render_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        render_begin_info.renderPass = context->render_pass;
+        render_begin_info.framebuffer = context->swapchain_framebuffers[image_index];
+        render_begin_info.renderArea.offset.x = 0;
+        render_begin_info.renderArea.offset.y = 0;
+        render_begin_info.renderArea.extent.width = context->swapchain_extent.width;
+        render_begin_info.renderArea.extent.height = context->swapchain_extent.height;
+        render_begin_info.pNext = NULL;
+        u32 clear_value_count = 1;
+        auto clear_values = new VkClearValue[clear_value_count]{};
+        clear_values[0].color.float32[0] = 0.0f;
+        clear_values[0].color.float32[1] = 0.0f;
+        clear_values[0].color.float32[2] = 0.0f;
+        clear_values[0].color.float32[3] = 1.0f;
+        render_begin_info.clearValueCount = clear_value_count;
+        render_begin_info.pClearValues = clear_values;
 
-    vkCmdBeginRenderPass(context->command_buffer, &render_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(context->command_buffer, &render_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-    // Render pass
-    {
         vkCmdBindPipeline(
             context->command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -803,8 +821,8 @@ internal void vk_record_command_buffer(Vk_Context *context, u32 image_index) {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)context->swapchain_extent.width;
-        viewport.height = (float)context->swapchain_extent.height;
+        viewport.width = (f32)context->swapchain_extent.width;
+        viewport.height = (f32)context->swapchain_extent.height;
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(context->command_buffer, 0, 1, &viewport);
@@ -816,11 +834,11 @@ internal void vk_record_command_buffer(Vk_Context *context, u32 image_index) {
         vkCmdSetScissor(context->command_buffer, 0, 1, &scissor);
     
         vkCmdDraw(context->command_buffer, 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(context->command_buffer);
+
+        delete[] clear_values;
     }
 
-    vkCmdEndRenderPass(context->command_buffer);
-
     VK_CHECK(vkEndCommandBuffer(context->command_buffer));
-
-    delete[] clear_values;
 }

@@ -59,6 +59,8 @@ internal void vk_cleanup(Vk_Context *context);
 
 internal void vk_draw_frame(Vk_Context *context);
 
+internal void vk_wait_idle(Vk_Context *context);
+
 // -----------------------------------------------------------------------------
 
 global const char *vk_validation_layer_names[] = {
@@ -124,6 +126,7 @@ internal void vk_pick_physical_device(Vk_Context *context);
 internal void vk_create_device(Vk_Context *context);
 
 internal void vk_create_swapchain(Vk_Context *context, GLFWwindow *window);
+internal void vk_cleanup_swapchain(Vk_Context *context);
 
 internal void vk_create_render_pass(Vk_Context *context);
 
@@ -132,6 +135,7 @@ internal char *vk_read_code(const char *filename, u64 *size);
 internal void vk_create_graphics_pipeline(Vk_Context *context);
 
 internal void vk_create_framebuffers(Vk_Context *context);
+internal void vk_cleanup_framebuffers(Vk_Context *context);
 
 internal void vk_create_command_buffer(Vk_Context *context);
 
