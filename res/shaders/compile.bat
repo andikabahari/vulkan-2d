@@ -1,9 +1,17 @@
 @echo off
 setlocal
 
-call glslc -fshader-stage=vertex   .\sample.vert.glsl -o .\sample.vert.spv
-call glslc -fshader-stage=fragment .\sample.frag.glsl -o .\sample.frag.spv
+echo Compiling GLSL shaders to SPIR-V...
 
-echo Shaders compiled.
+where glslangValidator >nul 2>nul
+if %errorlevel% neq 0 (
+    echo glslangValidator not found.
+    pause
+    exit /b 1
+)
+
+for %%f in (*.glsl) do (
+    glslangValidator -V "%%f" -o "%%~nf.spv"
+)
 
 endlocal

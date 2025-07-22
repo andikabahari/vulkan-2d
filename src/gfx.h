@@ -4,6 +4,13 @@
 
 #define VK_CHECK(v) ASSERT((v) == VK_SUCCESS)
 
+struct Vk_Queue_Family_Indices {
+    u32 graphics_family;
+    u32 present_family;
+    u32 compute_family;
+    u32 transfer_family;
+};
+
 struct Vk_Swapchain_Support_Info {
     VkSurfaceCapabilitiesKHR capabilities;
     u32 format_count;
@@ -12,11 +19,20 @@ struct Vk_Swapchain_Support_Info {
     VkPresentModeKHR *present_modes;
 };
 
-struct Vk_Queue_Family_Indices {
-    u32 graphics_family;
-    u32 present_family;
-    u32 compute_family;
-    u32 transfer_family;
+struct Vk_Vertex {
+    f32 position[2];
+    f32 tex_coord[2];
+};
+
+// TODO: Throw stuff related to rendering a quad here.
+struct Vk_Quad {
+    VkBuffer vertex_buffer;
+    VkDeviceMemory vertex_buffer_memory;
+    u32 vertex_count;
+
+    VkBuffer index_buffer;
+    VkDeviceMemory index_buffer_memory;
+    u32 index_count;
 };
 
 struct Vk_Context {
@@ -52,6 +68,9 @@ struct Vk_Context {
     VkSemaphore image_available_semaphore;
     VkSemaphore render_finished_semaphore;
     VkFence in_flight_fence;
+
+    // NOTO: This is temporary.
+    Vk_Quad quad;
 };
 
 internal Vk_Context *vk_init(GLFWwindow *window);
@@ -142,3 +161,24 @@ internal void vk_create_command_buffer(Vk_Context *context);
 internal void vk_create_sync_objects(Vk_Context *context);
 
 internal void vk_record_command_buffer(Vk_Context *context, u32 image_index);
+
+u32 vk_find_memory_type(VkPhysicalDeviceMemoryProperties mem_properties, u32 type_filter, VkMemoryPropertyFlags properties);
+
+internal void vk_create_buffer(
+    Vk_Context *context, VkDeviceSize size,
+    VkBufferUsageFlags usage, VkBuffer *buffer,
+    VkMemoryPropertyFlags properties, VkDeviceMemory *buffer_memory);
+
+internal void vk_copy_buffer(Vk_Context *context, VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
+
+global Vk_Vertex vk_quad_vertices[] = {
+    {{-1.0f, -1.0f}, {0.f, 1.f}}, // Bottom-left
+    {{ 1.0f, -1.0f}, {1.f, 1.f}}, // Bottom-right
+    {{ 1.0f,  1.0f}, {1.f, 0.f}}, // Top-right
+    {{-1.0f,  1.0f}, {0.f, 0.f}}, // Top-left
+};
+
+global u32 vk_quad_indices[] = {0, 1, 2, 2, 3, 0};
+
+internal void vk_create_quad(Vk_Context *context, Vk_Quad *quad);
+internal void vk_cleanup_quad(Vk_Context *context, Vk_Quad *quad);
