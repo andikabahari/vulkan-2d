@@ -18,15 +18,67 @@ internal Vk_Context *vk_init(GLFWwindow *window) {
     vk_create_render_pass(context);
     vk_create_graphics_pipeline(context);
 
-    vk_create_quad(context, &context->quad); // TODO: Cleanup!
-
     vk_create_framebuffers(context);
     vk_create_sync_objects(context);
+
+    {
+        context->vertex_count = ARRAY_COUNT(vk_quad_vertices);
+
+        VkDeviceSize vert_size = sizeof(vk_quad_vertices);
+
+        vk_create_buffer(
+            context, vert_size,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &context->vertex_buffer,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &context->vertex_buffer_memory);
+
+        {
+            void *data;
+            VK_CHECK(vkMapMemory(context->device, context->vertex_buffer_memory, 0, vert_size, 0, &data));
+            memcpy(data, vk_quad_vertices, (u64)vert_size);
+            vkUnmapMemory(context->device, context->vertex_buffer_memory);
+        }
+
+        context->index_count = ARRAY_COUNT(vk_quad_indices);
+
+        VkDeviceSize copy_size = sizeof(vk_quad_indices);
+
+        VkBuffer staging_buffer;
+        VkDeviceMemory staging_buffer_memory;
+        vk_create_buffer(
+            context, copy_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer_memory);
+
+        {
+            void *data;
+            vkMapMemory(context->device, staging_buffer_memory, 0, copy_size, 0, &data);
+            memcpy(data, vk_quad_indices, (u64)copy_size);
+            vkUnmapMemory(context->device, staging_buffer_memory);
+        }
+
+        vk_create_buffer(
+            context, copy_size,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, &context->index_buffer,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &context->index_buffer_memory);
+
+        vk_copy_buffer(context, staging_buffer, context->index_buffer, copy_size);
+
+        vkDestroyBuffer(context->device, staging_buffer, context->allocator);
+        vkFreeMemory(context->device, staging_buffer_memory, context->allocator);
+    }
 
     return context;
 }
 
 internal void vk_cleanup(Vk_Context *context) {
+    {
+        vkDestroyBuffer(context->device, context->vertex_buffer, context->allocator);
+        vkFreeMemory(context->device, context->vertex_buffer_memory, context->allocator);
+
+        vkDestroyBuffer(context->device, context->index_buffer, context->allocator);
+        vkFreeMemory(context->device, context->index_buffer_memory, context->allocator);
+    }
+
     vkDestroySemaphore(context->device, context->image_available_semaphore, context->allocator);
     vkDestroySemaphore(context->device, context->render_finished_semaphore, context->allocator);
     vkDestroyFence(context->device, context->in_flight_fence, context->allocator);
@@ -749,7 +801,7 @@ internal void vk_create_graphics_pipeline(Vk_Context *context) {
 }
 
 internal void vk_create_framebuffers(Vk_Context *context) {
-    context->swapchain_framebuffers = new VkFramebuffer[context->swapchain_image_count];
+    context->framebuffers = new VkFramebuffer[context->swapchain_image_count];
 
     for (u32 i = 0; i < context->swapchain_image_count; ++i) {
         // TODO: we might need depth attachment later
@@ -765,16 +817,16 @@ internal void vk_create_framebuffers(Vk_Context *context) {
         create_info.layers = 1;
 
         VK_CHECK(vkCreateFramebuffer(
-            context->device, &create_info, context->allocator, &context->swapchain_framebuffers[i]));
+            context->device, &create_info, context->allocator, &context->framebuffers[i]));
     }
 }
 
 internal void vk_cleanup_framebuffers(Vk_Context *context) {
     for (u32 i = 0; i < context->swapchain_image_count; ++i) {
-        vkDestroyFramebuffer(context->device, context->swapchain_framebuffers[i], context->allocator);
+        vkDestroyFramebuffer(context->device, context->framebuffers[i], context->allocator);
     }
-    delete[] context->swapchain_framebuffers;
-    context->swapchain_framebuffers = NULL;
+    delete[] context->framebuffers;
+    context->framebuffers = NULL;
 }
 
 internal void vk_create_command_buffer(Vk_Context *context) {
@@ -827,7 +879,7 @@ internal void vk_record_command_buffer(Vk_Context *context, u32 image_index) {
         VkRenderPassBeginInfo render_pass_info{};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         render_pass_info.renderPass = context->render_pass;
-        render_pass_info.framebuffer = context->swapchain_framebuffers[image_index];
+        render_pass_info.framebuffer = context->framebuffers[image_index];
         render_pass_info.renderArea.offset.x = 0;
         render_pass_info.renderArea.offset.y = 0;
         render_pass_info.renderArea.extent.width = context->swapchain_extent.width;
@@ -863,12 +915,12 @@ internal void vk_record_command_buffer(Vk_Context *context, u32 image_index) {
 
         {
             u32 first_binding = 0;
-            VkBuffer buffers[] = {context->quad.vertex_buffer};
+            VkBuffer buffers[] = {context->vertex_buffer};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(context->command_buffer, first_binding, ARRAY_COUNT(buffers), buffers, offsets);
         }
 
-        vkCmdBindIndexBuffer(context->command_buffer, context->quad.index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(context->command_buffer, context->index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdDrawIndexed(context->command_buffer, 6, 1, 0, 0, 0);
 
@@ -963,58 +1015,4 @@ internal void vk_copy_buffer(Vk_Context *context, VkBuffer src_buffer, VkBuffer 
 
     vkDestroyFence(context->device, fence, context->allocator);
     vkFreeCommandBuffers(context->device, context->command_pool, 1, &command_buffer);
-}
-
-internal void vk_create_quad(Vk_Context *context, Vk_Quad *quad) {
-    quad->vertex_count = ARRAY_COUNT(vk_quad_vertices);
-
-    VkDeviceSize vert_size = sizeof(vk_quad_vertices);
-
-    vk_create_buffer(
-        context, vert_size,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &quad->vertex_buffer,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &quad->vertex_buffer_memory);
-
-    {
-        void *data;
-        VK_CHECK(vkMapMemory(context->device, quad->vertex_buffer_memory, 0, vert_size, 0, &data));
-        memcpy(data, vk_quad_vertices, (u64)vert_size);
-        vkUnmapMemory(context->device, quad->vertex_buffer_memory);
-    }
-
-    quad->index_count = ARRAY_COUNT(vk_quad_indices);
-
-    VkDeviceSize copy_size = sizeof(vk_quad_indices);
-
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-    vk_create_buffer(
-        context, copy_size,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &staging_buffer,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging_buffer_memory);
-
-    {
-        void *data;
-        vkMapMemory(context->device, staging_buffer_memory, 0, copy_size, 0, &data);
-        memcpy(data, vk_quad_indices, (u64)copy_size);
-        vkUnmapMemory(context->device, staging_buffer_memory);
-    }
-
-    vk_create_buffer(
-        context, copy_size,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, &quad->index_buffer,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &quad->index_buffer_memory);
-
-    vk_copy_buffer(context, staging_buffer, quad->index_buffer, copy_size);
-
-    vkDestroyBuffer(context->device, staging_buffer, context->allocator);
-    vkFreeMemory(context->device, staging_buffer_memory, context->allocator);
-}
-
-internal void vk_cleanup_quad(Vk_Context *context, Vk_Quad *quad) {
-    vkDestroyBuffer(context->device, quad->vertex_buffer, context->allocator);
-    vkFreeMemory(context->device, quad->vertex_buffer_memory, context->allocator);
-
-    vkDestroyBuffer(context->device, quad->index_buffer, context->allocator);
-    vkFreeMemory(context->device, quad->index_buffer_memory, context->allocator);
 }

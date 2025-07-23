@@ -24,17 +24,6 @@ struct Vk_Vertex {
     f32 tex_coord[2];
 };
 
-// TODO: Throw stuff related to rendering a quad here.
-struct Vk_Quad {
-    VkBuffer vertex_buffer;
-    VkDeviceMemory vertex_buffer_memory;
-    u32 vertex_count;
-
-    VkBuffer index_buffer;
-    VkDeviceMemory index_buffer_memory;
-    u32 index_count;
-};
-
 struct Vk_Context {
     VkInstance instance;
     VkSurfaceKHR surface;
@@ -56,7 +45,8 @@ struct Vk_Context {
     VkFormat swapchain_image_format;
     VkImageView *swapchain_image_views;
     VkExtent2D swapchain_extent;
-    VkFramebuffer *swapchain_framebuffers;
+
+    VkFramebuffer *framebuffers;
 
     VkRenderPass render_pass;
     VkPipelineLayout pipeline_layout;
@@ -69,8 +59,13 @@ struct Vk_Context {
     VkSemaphore render_finished_semaphore;
     VkFence in_flight_fence;
 
-    // NOTO: This is temporary.
-    Vk_Quad quad;
+    VkBuffer vertex_buffer;
+    VkDeviceMemory vertex_buffer_memory;
+    u32 vertex_count;
+
+    VkBuffer index_buffer;
+    VkDeviceMemory index_buffer_memory;
+    u32 index_count;
 };
 
 internal Vk_Context *vk_init(GLFWwindow *window);
@@ -179,6 +174,3 @@ global Vk_Vertex vk_quad_vertices[] = {
 };
 
 global u32 vk_quad_indices[] = {0, 1, 2, 2, 3, 0};
-
-internal void vk_create_quad(Vk_Context *context, Vk_Quad *quad);
-internal void vk_cleanup_quad(Vk_Context *context, Vk_Quad *quad);
